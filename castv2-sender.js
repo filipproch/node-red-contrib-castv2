@@ -4,7 +4,14 @@ module.exports = function(RED) {
     const Client = require("castv2-client").Client;
     const DefaultMediaReceiver = require("castv2-client").DefaultMediaReceiver;
     const Application = require('castv2-client').Application;
+    const RequestResponseController = require('castv2-client').RequestResponseController;
     const googletts = require("google-tts-api");
+    
+    function SpotifyController(client, sourceId, destinationId) {
+        RequestResponseController.call(this, client, sourceId, destinationId, 'urn:x-cast:com.spotify.chromecast.secure.v1');
+    }
+
+    util.inherits(SpotifyController, RequestResponseController);
 
     function CastV2SenderNode(config) {
         RED.nodes.createNode(this, config);
@@ -161,7 +168,7 @@ module.exports = function(RED) {
         /*
          * Cast command handler
          */
-        this.sendCastCommand = function(receiver, command) {
+        this.sendCastCommand = function(receiver, app, command, targetApp) {
             node.status({ fill: "yellow", shape: "dot", text: "sending" });
 
             // Check for platform commands first
@@ -189,6 +196,16 @@ module.exports = function(RED) {
                     // If media receiver attempt to execute media commands
                     if (receiver instanceof DefaultMediaReceiver) {
                         return node.sendMediaCommand(receiver, command);
+                    } else if (targetApp === "spotify") {
+                        return new Promise((resolve, reject) => {
+                            app.spotify.send(command);
+                            
+                            app.spotify.on('message', async(message) => {
+                                if (message.type === 'setCredentialsResponse') {
+                                    resolve();
+                                }
+                            });
+                        });
                     }
                     break;
             }
@@ -221,7 +238,10 @@ module.exports = function(RED) {
                     let app = DefaultMediaReceiver;
                     if (msg.appId && msg.appId !== "") {
                         // Build a generic application to pass into castv2 that will only support launch and close
-                        let GenericApplication = function(client, session) { Application.apply(this, arguments); };
+                        let GenericApplication = function(client, session) { 
+                            Application.apply(this, arguments);
+                            this.spotify = this.createController(SpotifyController);
+                        };
                         util.inherits(GenericApplication, Application);
                         GenericApplication.APP_ID = msg.appId;
 
@@ -245,7 +265,7 @@ module.exports = function(RED) {
                                     if (joinError) return node.onError(joinError);
 
                                     node.status({ fill: "green", shape: "dot", text: "joined" });
-                                    node.sendCastCommand(receiver, msg.payload);
+                                    node.sendCastCommand(receiver, app, msg.payload, msg.targetApp);
                                 });
                             } else {
                                 // Launch new Application session
@@ -253,7 +273,7 @@ module.exports = function(RED) {
                                     if (launchError) return node.onError(launchError);
 
                                     node.status({ fill: "green", shape: "dot", text: "launched" });
-                                    node.sendCastCommand(receiver, msg.payload);            
+                                    node.sendCastCommand(receiver, app, msg.payload, msg.targetApp);            
                                 });
                             }
                         });
