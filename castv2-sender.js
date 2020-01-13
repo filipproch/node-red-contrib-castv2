@@ -168,7 +168,10 @@ module.exports = function(RED) {
         /*
          * Cast command handler
          */
-        this.sendCastCommand = function(receiver, command, targetApp) {
+        this.sendCastCommand = function(receiver, msg) {
+            const command = msg.payload;
+            const targetApp = msg.targetApp;
+
             node.status({ fill: "yellow", shape: "dot", text: "sending" });
 
             // Check for platform commands first
@@ -197,7 +200,7 @@ module.exports = function(RED) {
                     if (receiver instanceof DefaultMediaReceiver) {
                         return node.sendMediaCommand(receiver, command);
                     } else if (targetApp === "spotify") {
-                        return new Promise((resolve, reject) => {
+                        return new Promise(async(resolve, reject) => {
                             node.log('Sending custom command to Spotify...');
                             receiver.spotify.send(command);
                             
@@ -287,7 +290,7 @@ module.exports = function(RED) {
                                     if (joinError) return node.onError(joinError);
 
                                     node.status({ fill: "green", shape: "dot", text: "joined" });
-                                    node.sendCastCommand(receiver, msg.payload, msg.targetApp);
+                                    node.sendCastCommand(receiver, msg);
                                 });
                             } else {
                                 node.log(`Launching new Application session...`);
@@ -296,7 +299,7 @@ module.exports = function(RED) {
                                     if (launchError) return node.onError(launchError);
 
                                     node.status({ fill: "green", shape: "dot", text: "launched" });
-                                    node.sendCastCommand(receiver, msg.payload, msg.targetApp);            
+                                    node.sendCastCommand(receiver, msg);            
                                 });
                             }
                         });

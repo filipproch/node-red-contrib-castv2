@@ -29,7 +29,7 @@
   },
   "node-red": {
     "nodes": {
-        "castv2-sender": "castv2-sender.js"
+      "castv2-sender": "castv2-sender.js"
     }
   }
 }
