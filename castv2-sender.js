@@ -198,6 +198,8 @@ module.exports = function(RED) {
                         return node.sendMediaCommand(receiver, command);
                     } else if (targetApp === "spotify") {
                         return new Promise((resolve, reject) => {
+                            node.log('Sending custom command to Spotify...');
+                            node.log(`app.spotify = ${app.spotify}, ${app}`);
                             app.spotify.send(command);
                             
                             app.spotify.on('message', async(message) => {
@@ -230,6 +232,8 @@ module.exports = function(RED) {
 
                 // Execute command
                 let connectOptions = { host: msg.host || node.host };
+                
+                node.log(`Connecting to ${connectOptions.host}...`);
 
                 node.client.connect(connectOptions, () => {
                     node.status({ fill: "green", shape: "dot", text: "connected" });
@@ -240,12 +244,15 @@ module.exports = function(RED) {
                         // Build a generic application to pass into castv2 that will only support launch and close
                         let GenericApplication = function(client, session) { 
                             Application.apply(this, arguments);
+                            
                             this.spotify = this.createController(SpotifyController);
                         };
                         util.inherits(GenericApplication, Application);
                         GenericApplication.APP_ID = msg.appId;
 
                         app = GenericApplication;
+                        
+                        node.log(`Initialized custom APP: ${msg.appId}`);
                     }
                     
                     node.client.getAppAvailability(app.APP_ID, (getAppAvailabilityError, availability) => {
@@ -254,12 +261,14 @@ module.exports = function(RED) {
                         // Only attempt to use the app if its available
                         if (!availability || !(app.APP_ID in availability) || availability[app.APP_ID] === false) return node.onStatus(null, null);
 
+                        node.log(`App available, checking if session exists...`);
                         // Get current sessions
                         node.client.getSessions((getSessionsError, sessions) => {
                             if (getSessionsError) return node.onError(getSessionsError);
 
                             let activeSession = sessions.find(session => session.appId === app.APP_ID);
                             if (activeSession) {
+                                node.log(`Attempting to join active session...`);
                                 // Join active Application session
                                 node.client.join(activeSession, app, (joinError, receiver) => {
                                     if (joinError) return node.onError(joinError);
@@ -268,6 +277,7 @@ module.exports = function(RED) {
                                     node.sendCastCommand(receiver, app, msg.payload, msg.targetApp);
                                 });
                             } else {
+                                node.log(`Launching new Application session...`);
                                 // Launch new Application session
                                 node.client.launch(app, (launchError, receiver) => {
                                     if (launchError) return node.onError(launchError);
