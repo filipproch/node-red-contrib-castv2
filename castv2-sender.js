@@ -199,14 +199,20 @@ module.exports = function(RED) {
                     } else if (targetApp === "spotify") {
                         return new Promise((resolve, reject) => {
                             node.log('Sending custom command to Spotify...');
-                            node.log(`app.spotify = ${receiver.spotify}, ${receiver}`);
                             receiver.spotify.send(command);
                             
+                            node.log('Waiting for response...');
                             receiver.spotify.on('message', async(message) => {
-                                if (message.type === 'setCredentialsResponse') {
+                                node.log(`Received message: ${message}`);
+                                if (message.type === `${command.type}Response`) {
                                     resolve(message);
                                 }
                             });
+
+                            const timeoutMs = 5000;
+                            setTimeout(function() {
+                                reject('Promise timed out after ' + timeoutMs + ' ms');
+                            }, timeoutMs);
                         })
                             .then((response) => {
                                 node.status({ fill: "green", shape: "dot", text: "command sent" });
