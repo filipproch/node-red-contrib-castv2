@@ -168,7 +168,7 @@ module.exports = function(RED) {
         /*
          * Cast command handler
          */
-        this.sendCastCommand = function(receiver, app, command, targetApp) {
+        this.sendCastCommand = function(receiver, command, targetApp) {
             node.status({ fill: "yellow", shape: "dot", text: "sending" });
 
             // Check for platform commands first
@@ -199,15 +199,22 @@ module.exports = function(RED) {
                     } else if (targetApp === "spotify") {
                         return new Promise((resolve, reject) => {
                             node.log('Sending custom command to Spotify...');
-                            node.log(`app.spotify = ${app.spotify}, ${app}`);
-                            app.spotify.send(command);
+                            node.log(`app.spotify = ${receiver.spotify}, ${receiver}`);
+                            receiver.spotify.send(command);
                             
-                            app.spotify.on('message', async(message) => {
+                            receiver.spotify.on('message', async(message) => {
                                 if (message.type === 'setCredentialsResponse') {
-                                    resolve();
+                                    resolve(message);
                                 }
                             });
-                        });
+                        })
+                            .then((response) => {
+                                node.status({ fill: "green", shape: "dot", text: "command sent" });
+                                node.send({
+                                    response: response,
+                                });
+                            })
+                            .catch((e) => node.onError(e));
                     }
                     break;
             }
@@ -274,7 +281,7 @@ module.exports = function(RED) {
                                     if (joinError) return node.onError(joinError);
 
                                     node.status({ fill: "green", shape: "dot", text: "joined" });
-                                    node.sendCastCommand(receiver, app, msg.payload, msg.targetApp);
+                                    node.sendCastCommand(receiver, msg.payload, msg.targetApp);
                                 });
                             } else {
                                 node.log(`Launching new Application session...`);
@@ -283,7 +290,7 @@ module.exports = function(RED) {
                                     if (launchError) return node.onError(launchError);
 
                                     node.status({ fill: "green", shape: "dot", text: "launched" });
-                                    node.sendCastCommand(receiver, app, msg.payload, msg.targetApp);            
+                                    node.sendCastCommand(receiver, msg.payload, msg.targetApp);            
                                 });
                             }
                         });
